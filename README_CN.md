@@ -85,7 +85,8 @@ dpdns-renew/
 ├── config/                # 持久化数据目录
 │   ├── .dpdns_cookies.json
 │   └── *.png
-└── README.md
+├── README.md
+└── README_CN.md
 ```
 
 ## 常见问题
