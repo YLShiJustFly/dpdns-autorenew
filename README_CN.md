@@ -21,8 +21,8 @@
 ### 1. 克隆或下载
 
 ```bash
-git clone https://github.com/YLShiJustFly/dpdns_autorenew.git
-cd dpdns_autorenew
+git clone https://github.com/YLShiJustFly/dpdns-autorenew.git
+cd dpdns-autorenew
 ```
 
 或直接下载并解压发布包。

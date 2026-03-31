@@ -21,8 +21,8 @@ Automatic renewal tool for DigitalPlat DPDNS free domains using DrissionPage to 
 ### 1. Clone or Download
 
 ```bash
-git clone https://github.com/YLShiJustFly/dpdns_autorenew.git
-cd dpdns_autorenew
+git clone https://github.com/YLShiJustFly/dpdns-autorenew.git
+cd dpdns-autorenew
 ```
 
 Or download and extract the release package.
