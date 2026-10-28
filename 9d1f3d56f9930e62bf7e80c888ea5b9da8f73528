@@ -1,0 +1,49 @@
+README.md
+  3d30a1b9a4d92e65 5-6,10-15,26,29,31-36,39,41,43-45,48,51,54,56-57,59-61,63,66-72,79-81,83-105,107-110
+.env.example
+  3d30a1b9a4d92e65 1-9
+README_CN.md
+  3d30a1b9a4d92e65 5-6,10-15,26,29,31-36,39,41,43-45,48,51,54,56,58-60,65-71,78-80,82-103,105-107
+.gitignore
+  3d30a1b9a4d92e65 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "9d1f3d56f9930e62bf7e80c888ea5b9da8f73528",
+  "prompts": {
+    "3d30a1b9a4d92e65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "63fdc320-3cd7-48dc-9f58-d2e9f7bf8a03",
+        "model": "deepseek-flash"
+      },
+      "human_author": "YLShiJustFly",
+      "messages": [],
+      "total_additions": 149,
+      "total_deletions": 115,
+      "accepted_lines": 149,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "README_CN.md": {
+          "additions": 63,
+          "deletions": 57,
+          "accepted_lines": 63
+        },
+        ".gitignore": {
+          "additions": 10,
+          "accepted_lines": 10
+        },
+        "README.md": {
+          "additions": 67,
+          "deletions": 58,
+          "accepted_lines": 67
+        },
+        ".env.example": {
+          "additions": 9,
+          "accepted_lines": 9
+        }
+      }
+    }
+  }
+}
