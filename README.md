@@ -2,103 +2,112 @@
 
 [English](README.md) | [中文](README_CN.md)
 
-Automatic renewal tool for DigitalPlat DPDNS free domains using DrissionPage to bypass Cloudflare Turnstile verification.
+Automatic renewal for DigitalPlat DPDNS free domains. Logs in with a real browser
+(Cloudflare Turnstile), then talks to the panel's own JSON API to check and renew.
 
 ## Features
 
-- Automatic bypass of Cloudflare Turnstile CAPTCHA
-- Cookie persistence
-- Docker containerized deployment
-- Support for scheduled execution via crontab
+- Real browser login through Cloudflare Turnstile (DrissionPage + Xvfb)
+- Handles the panel's CSRF double-submit (`panel_csrf_token` + `X-CSRF-Token`)
+- Reuses the saved session (valid ~5 days), only opens a browser when needed
+- Pins Cloudflare challenge hosts to IPv4, so containers without IPv6 don't hang
+- Checks `free_renewal.available` before renewing — safe to run on a schedule
+- `DRY_RUN` mode for a no-op check
 
 ## Requirements
 
 - Docker & Docker Compose
-- Linux/Windows/MacOS with Docker support
 
 ## Quick Start
-
-### 1. Clone or Download
 
 ```bash
 git clone https://github.com/YLShiJustFly/dpdns-autorenew.git
 cd dpdns-autorenew
+cp .env.example .env
 ```
 
-Or download and extract the release package.
+Edit `.env`:
 
-### 2. Configure Environment Variables
-
-Edit `docker-compose.yml`:
-
-```yaml
-services:
-  dpdns-renew:
-    build: .
-    container_name: dpdns-renew
-    environment:
-      - EMAIL=your_email@example.com      # Your DPDNS email
-      - PASSWORD=your_password            # Your DPDNS password
-      - DOMAIN=yourdomain.dpdns.org       # Your DPDNS domain
-      - AUTO_MODE=false                   # Set to false for cron execution
-      - TZ=Asia/Shanghai
-      - DISPLAY=:99
-    volumes:
-      - ./config:/config
-    shm_size: 2gb
+```dotenv
+DPDNS_EMAIL=you@example.com
+DPDNS_PASSWORD=your_password
+DPDNS_DOMAIN=yourdomain.dpdns.org
+DRY_RUN=true
+BASE_IMAGE=docker.m.daocloud.io/library/python:3.11-slim-bookworm
 ```
 
-### 3. Build and Run
+Credentials live in `.env` only — never in `docker-compose.yml`, never in git.
+
+Build and do a dry run first:
 
 ```bash
-# Build and start
-docker compose up -d --build
-
-# View logs
-docker logs -f dpdns-renew
+docker compose build
+docker compose run --rm dpdns-renew     # DRY_RUN=true: check only
 ```
 
-### 4. Set Up Scheduled Execution (Optional)
-
-Edit crontab to run annually on October 1st:
+Then set `DRY_RUN=false` and run it for real:
 
 ```bash
-crontab -e
+docker compose run --rm dpdns-renew
 ```
 
-Add the following line:
+## Scheduling
+
+Free renewal opens 120 days before expiry. Running daily is harmless — the
+script exits early when the window is closed.
+
+```cron
+0 3 * * * cd /path/to/dpdns-autorenew && docker compose run --rm dpdns-renew >> renew.log 2>&1
+```
+
+## Files
 
 ```
-0 9 1 10 * cd /path/to/dpdns-renew && docker compose up -d
-```
-
-This will execute the renewal at 9:00 AM on October 1st every year.
-
-## File Structure
-
-```
-dpdns-renew/
-├── Dockerfile              # Docker build configuration
-├── docker-compose.yml      # Docker Compose configuration
-├── entrypoint.sh          # Container entry script
-├── dpdns_renew_drission.py # Main renewal script
-├── config/                # Persistent data directory
-│   ├── .dpdns_cookies.json
-│   └── *.png
+dpdns-autorenew/
+├── Dockerfile
+├── docker-compose.yml
+├── entrypoint.sh
+├── dpdns_renew.py          # main script
+├── .env.example
+├── config/                 # runtime: session cookies, screenshots (gitignored)
 ├── README.md
 └── README_CN.md
 ```
 
 ## Troubleshooting
 
-### Container keeps restarting
-Set `AUTO_MODE=false` in `docker-compose.yml` and use crontab for scheduled execution instead.
+**`failed to resolve source metadata for docker.io/...` / IPv6 i/o timeout**
+Docker Hub is unreachable or resolves to IPv6. The default `BASE_IMAGE` points at
+a China mirror. To pick a faster one:
 
-### Slow build speed in China
-The Dockerfile uses Aliyun mirror for APT and Tsinghua mirror for PyPI by default.
+```bash
+for m in docker.m.daocloud.io docker.1ms.run docker.1panel.live hub.rat.dev; do
+  echo -n "$m: "; curl -s -o /dev/null -w "%{http_code}\n" --max-time 8 "https://$m/v2/"
+done
+```
 
-### Renewal failed
-Check logs with `docker logs -f dpdns-renew`. The script will save screenshots in the `config/` directory for debugging.
+`401` is normal for a registry. Then set `BASE_IMAGE` in `.env`.
+
+**`xvfb-run: error: xauth command not found`**
+`xauth` is only a Recommends of `xvfb`. The Dockerfile installs it explicitly.
+
+**Stuck at “waiting for Turnstile”**
+The container likely has no IPv6 route and Chrome picked an AAAA record for
+`challenges.cloudflare.com`. The script resolves IPv4 and injects
+`--host-resolver-rules` at browser start.
+
+**`Incorrect email or password` with correct credentials**
+Check `.env` for a trailing `\r` (Windows editors) or stray quotes:
+
+```bash
+grep PASSWORD .env | cat -A
+sed -i 's/\r$//' .env
+```
+
+**Build is slow in China**
+The apt step pulls Chromium and its dependencies (several hundred MB), but it is
+cached after the first successful build. Tsinghua mirrors measured faster than
+Aliyun; adjust the `sed` line in the Dockerfile if yours differ.
 
 ## License
 

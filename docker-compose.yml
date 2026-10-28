@@ -1,16 +1,21 @@
-version: '3'
-
 services:
   dpdns-renew:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-docker.m.daocloud.io/library/python:3.11-slim-bookworm}
+    image: dpdns-renew:latest
     container_name: dpdns-renew
     environment:
-      - EMAIL=your_email@example.com      # Your DPDNS email
-      - PASSWORD=your_password            # Your DPDNS password
-      - DOMAIN=yourdomain.dpdns.org       # Your DPDNS domain
-      - AUTO_MODE=false                   # Set to false for cron execution
+      - EMAIL=${DPDNS_EMAIL}
+      - PASSWORD=${DPDNS_PASSWORD}
+      - DOMAIN=${DPDNS_DOMAIN}
+      - DRY_RUN=${DRY_RUN:-false}
+      - AUTO_MODE=false
       - TZ=Asia/Shanghai
       - DISPLAY=:99
     volumes:
       - ./config:/config
     shm_size: 2gb
+    restart: "no"

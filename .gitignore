@@ -1,0 +1,10 @@
+# 环境变量
+.env
+
+# 运行态数据（会话 cookie、截图）
+config/
+*.log
+
+# Python
+__pycache__/
+*.pyc

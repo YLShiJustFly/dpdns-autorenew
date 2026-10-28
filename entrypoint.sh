@@ -1,29 +1,25 @@
 #!/bin/bash
+set -uo pipefail
 
-# DPDNS Renewal Container Entrypoint Script
+echo "[entrypoint] start $(date '+%F %T')"
 
-echo "Starting DPDNS renewal script..."
-
-# Detect which script to use
-if [ -f "/app/dpdns_renew_drission.py" ]; then
-    SCRIPT="/app/dpdns_renew_drission.py"
+if [ -f /app/dpdns_renew.py ]; then
+    SCRIPT=/app/dpdns_renew.py
 else
-    echo "Error: Renewal script not found"
+    echo "[entrypoint] 错误：找不到 /app/dpdns_renew.py"
     exit 1
 fi
 
-# Run script with xvfb-run
-xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" python3 "$SCRIPT"
-
-# Save exit code
+xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" \
+    python3 "$SCRIPT"
 EXIT_CODE=$?
 
-# If AUTO_MODE is set, keep container running (for cron jobs)
-if [ "$AUTO_MODE" = "true" ] && [ "$EXIT_CODE" -eq 0 ]; then
-    echo "Renewal completed, container keeps running (use crontab for scheduled tasks)"
-    # Keep container running
+echo "[entrypoint] exit=$EXIT_CODE"
+
+# AUTO_MODE=true 时保持容器存活，交给外部 cron / docker 调度决定何时再跑
+if [ "${AUTO_MODE:-false}" = "true" ]; then
+    echo "[entrypoint] AUTO_MODE=true，容器保持运行"
     tail -f /dev/null
-else
-    # Exit directly
-    exit $EXIT_CODE
 fi
+
+exit $EXIT_CODE

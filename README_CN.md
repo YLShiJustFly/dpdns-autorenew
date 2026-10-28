@@ -2,103 +2,109 @@
 
 [English](README.md) | [中文](README_CN.md)
 
-使用 DrissionPage 绕过 Cloudflare Turnstile 验证码的 DigitalPlat DPDNS 免费域名自动续期工具。
+DigitalPlat DPDNS 免费域名自动续期。用真实浏览器登录（过 Cloudflare Turnstile），
+再调用面板自己的 JSON API 检查并续期。
 
 ## 特性
 
-- 自动绕过 Cloudflare Turnstile 人机验证
-- Cookie 持久化
-- Docker 容器化部署
-- 支持 crontab 定时执行
+- 真实浏览器登录，过 Cloudflare Turnstile（DrissionPage + Xvfb）
+- 处理面板的 CSRF 双提交（`panel_csrf_token` + `X-CSRF-Token`）
+- 复用已保存的会话（约 5 天有效），只有失效时才重启浏览器
+- 把 Cloudflare 挑战域名钉到 IPv4，容器没有 IPv6 也不会卡死
+- 先看 `free_renewal.available` 再续期，可以放心每天跑
+- 支持 `DRY_RUN` 空跑检查
 
 ## 环境要求
 
 - Docker & Docker Compose
-- 支持 Docker 的 Linux/Windows/MacOS
 
 ## 快速开始
-
-### 1. 克隆或下载
 
 ```bash
 git clone https://github.com/YLShiJustFly/dpdns-autorenew.git
 cd dpdns-autorenew
+cp .env.example .env
 ```
 
-或直接下载并解压发布包。
+编辑 `.env`：
 
-### 2. 配置环境变量
-
-编辑 `docker-compose.yml`：
-
-```yaml
-services:
-  dpdns-renew:
-    build: .
-    container_name: dpdns-renew
-    environment:
-      - EMAIL=your_email@example.com      # 你的 DPDNS 邮箱
-      - PASSWORD=your_password            # 你的 DPDNS 密码
-      - DOMAIN=yourdomain.dpdns.org       # 你的 DPDNS 域名
-      - AUTO_MODE=false                   # 设为 false，使用 cron 定时执行
-      - TZ=Asia/Shanghai
-      - DISPLAY=:99
-    volumes:
-      - ./config:/config
-    shm_size: 2gb
+```dotenv
+DPDNS_EMAIL=you@example.com
+DPDNS_PASSWORD=your_password
+DPDNS_DOMAIN=yourdomain.dpdns.org
+DRY_RUN=true
+BASE_IMAGE=docker.m.daocloud.io/library/python:3.11-slim-bookworm
 ```
 
-### 3. 构建并运行
+账号密码只放 `.env`，不要写进 `docker-compose.yml`，不要提交到 git。
+
+先构建 + 空跑：
 
 ```bash
-# 构建并启动
-docker compose up -d --build
-
-# 查看日志
-docker logs -f dpdns-renew
+docker compose build
+docker compose run --rm dpdns-renew     # DRY_RUN=true：只检查不续期
 ```
 
-### 4. 设置定时执行（可选）
-
-编辑 crontab，设置每年10月1日执行：
+确认无误后把 `DRY_RUN=false`，正式跑：
 
 ```bash
-crontab -e
+docker compose run --rm dpdns-renew
 ```
 
-添加以下行：
+## 定时执行
 
-```
-0 9 1 10 * cd /path/to/dpdns-renew && docker compose up -d
-```
+免费续期窗口在到期前 120 天开放。每天跑没有副作用——窗口没开时脚本直接退出。
 
-这将在每年10月1日早上9点执行续期。
+```cron
+0 3 * * * cd /path/to/dpdns-autorenew && docker compose run --rm dpdns-renew >> renew.log 2>&1
+```
 
 ## 文件结构
 
 ```
-dpdns-renew/
-├── Dockerfile              # Docker 构建配置
-├── docker-compose.yml      # Docker Compose 配置
-├── entrypoint.sh          # 容器入口脚本
-├── dpdns_renew_drission.py # 主续期脚本
-├── config/                # 持久化数据目录
-│   ├── .dpdns_cookies.json
-│   └── *.png
+dpdns-autorenew/
+├── Dockerfile
+├── docker-compose.yml
+├── entrypoint.sh
+├── dpdns_renew.py          # 主脚本
+├── .env.example
+├── config/                 # 运行态：会话 cookie、截图（已 gitignore）
 ├── README.md
 └── README_CN.md
 ```
 
 ## 常见问题
 
-### 容器不断重启
-在 `docker-compose.yml` 中设置 `AUTO_MODE=false`，改用 crontab 定时执行。
+**`failed to resolve source metadata for docker.io/...` / IPv6 i/o timeout**
+Docker Hub 拉不动，或解析到了 IPv6。默认 `BASE_IMAGE` 已指向国内镜像。
+测哪个快：
 
-### 国内构建速度慢
-Dockerfile 默认使用阿里云 APT 镜像和清华 PyPI 镜像。
+```bash
+for m in docker.m.daocloud.io docker.1ms.run docker.1panel.live hub.rat.dev; do
+  echo -n "$m: "; curl -s -o /dev/null -w "%{http_code}\n" --max-time 8 "https://$m/v2/"
+done
+```
 
-### 续期失败
-使用 `docker logs -f dpdns-renew` 查看日志。脚本会在 `config/` 目录保存截图用于调试。
+registry 返回 `401` 是正常的。然后把能用的写进 `.env` 的 `BASE_IMAGE`。
+
+**`xvfb-run: error: xauth command not found`**
+`xauth` 只是 `xvfb` 的 Recommends，Dockerfile 里已显式安装。
+
+**卡在「等待 Turnstile」**
+容器多半没有 IPv6 出口，Chrome 优先用了 `challenges.cloudflare.com` 的 AAAA 记录。
+脚本启动浏览器时会解析 IPv4 并注入 `--host-resolver-rules`。
+
+**密码正确却报 `Incorrect email or password`**
+检查 `.env` 是否有 `\r`（Windows 编辑器）或多余引号：
+
+```bash
+grep PASSWORD .env | cat -A
+sed -i 's/\r$//' .env
+```
+
+**国内构建慢**
+apt 那步要装 Chromium 及依赖（几百 MB），首次构建慢，成功后会被 Docker 缓存。
+实测清华源比阿里云快，想换就改 Dockerfile 里那行 `sed`。
 
 ## 许可证
 
